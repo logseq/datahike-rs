@@ -159,6 +159,28 @@ pub fn pull(input_db: String, selector: String, eid: i64) -> Result<String> {
 }
 
 #[napi]
+pub fn pull_many(input_db: String, selector: String, eids: String) -> Result<String> {
+  let output_format = "json\0";
+  let input_format = "db\0";
+
+  let cinput_db = CString::new(input_db).unwrap();
+  let cselector = CString::new(selector).unwrap();
+  let ceids = CString::new(eids).unwrap();
+  unsafe {
+    ffi::pull_many(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      cselector.as_ptr(),
+      ceids.as_ptr(),
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
+  }
+}
+
+#[napi]
 pub fn entity(input_db: String, eid: i64) -> Result<String> {
   let output_format = "json\0";
   let input_format = "db\0";
@@ -188,10 +210,6 @@ mod ffi {
       thread: *mut *mut c_void,
     ) -> c_int;
     /*
-
-
-    void pull_many(long long int, const char*, const char*, const char*, const char*, const char*, const void *);
-
     void datoms(long long int, const char*, const char*, const char*, const char*, const void *);
 
     void schema(long long int, const char*, const char*, const char*, const void *);
@@ -250,7 +268,16 @@ mod ffi {
       output_reader: *const c_void,
     );
 
-    // TODO: pull_many
+
+    pub fn pull_many(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      selector_edn: *const c_char,
+      eids_edn: *const c_char,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
 
     pub fn entity(
       context: *const c_void,

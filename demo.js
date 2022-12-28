@@ -35,6 +35,9 @@ const main = async () => {
     console.log("Ent:", await datahike.entity(config, 2))
     console.log("Pull:", await datahike.pull(config, "[:name :age]", 2))
 
+    console.log("Pull many:", await datahike.pullMany(config, "[:name]", "[1 2 3 4]"))
+
+
     console.log(await datahike.deleteDatabase(config));
 
 }
