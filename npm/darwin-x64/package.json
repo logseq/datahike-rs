@@ -1,0 +1,18 @@
+{
+  "name": "@logseq/datahike-darwin-x64",
+  "version": "0.0.0",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "datahike.darwin-x64.node",
+  "files": [
+    "datahike.darwin-x64.node"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 10"
+  }
+}
