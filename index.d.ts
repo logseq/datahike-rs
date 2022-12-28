@@ -7,3 +7,4 @@ export function init(): void
 export function databaseExists(config: string): boolean
 export function createDatabase(config: string): string
 export function transact(config: string, txData: string): string
+export function query(queryEdn: string, inputs: Array<[string, string]>): string

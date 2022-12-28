@@ -2,6 +2,7 @@
 
 use napi::*;
 use std::{
+  collections::HashMap,
   ffi::{c_char, c_void, CStr, CString},
   ptr,
 };
@@ -30,7 +31,6 @@ unsafe extern "C" fn parse_return(buf: *const c_char) {
   LAST_RESULT = String::from(cstr.to_str().unwrap());
 }
 
-
 #[napi]
 pub fn database_exists(config: String) -> Result<bool> {
   let output_format = "json\0";
@@ -46,7 +46,6 @@ pub fn database_exists(config: String) -> Result<bool> {
     Ok(LAST_RESULT == "true")
   }
 }
-
 
 #[napi]
 pub fn create_database(config: String) -> Result<String> {
@@ -78,6 +77,34 @@ pub fn transact(config: String, tx_data: String) -> Result<String> {
       cconfig.as_ptr(),
       input_format.as_ptr() as _,
       ctx_data.as_ptr(),
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    Ok(LAST_RESULT.clone())
+  }
+}
+
+#[napi]
+pub fn query(query_edn: String, inputs: Vec<(String, String)>) -> Result<String> {
+  let output_format = "json\0";
+
+  let cquery_edn = CString::new(query_edn).unwrap();
+  let input_keys = inputs
+    .iter()
+    .map(|k| CString::new(k.0.clone()).unwrap())
+    .collect::<Vec<_>>();
+  let input_values = inputs
+    .iter()
+    .map(|v| CString::new(v.1.clone()).unwrap())
+    .collect::<Vec<_>>();
+
+  unsafe {
+    ffi::query(
+      ISOLATETHREAD,
+      cquery_edn.as_ptr(),
+      inputs.len() as _,
+      input_keys.as_ptr() as _,
+      input_values.as_ptr() as _,
       output_format.as_ptr() as _,
       parse_return as *const c_void,
     );

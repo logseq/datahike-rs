@@ -246,9 +246,10 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { init, databaseExists, createDatabase, transact } = nativeBinding
+const { init, databaseExists, createDatabase, transact, query } = nativeBinding
 
 module.exports.init = init
 module.exports.databaseExists = databaseExists
 module.exports.createDatabase = createDatabase
 module.exports.transact = transact
+module.exports.query = query

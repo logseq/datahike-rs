@@ -22,6 +22,9 @@ const main = async () => {
     console.log(await datahike.transact(config, tx_data));
 
 
+    const q = "[:find ?a . :where [?e :age ?a]]"
+
+    await datahike.query(q, [["db", config]])
 
 }
 
