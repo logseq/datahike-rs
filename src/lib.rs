@@ -11,7 +11,7 @@ use std::{
 extern crate napi_derive;
 
 static mut ISOLATETHREAD: *mut c_void = ptr::null_mut();
-static mut LAST_RESULT: String = String::new();
+static mut LAST_RESULT: Result<String> = Result::Ok(String::new());
 
 #[napi]
 pub fn init() -> Result<()> {
@@ -28,7 +28,16 @@ pub fn init() -> Result<()> {
 unsafe extern "C" fn parse_return(buf: *const c_char) {
   let cstr = CStr::from_ptr(buf);
   println!("DEBUG: => {:?}", cstr);
-  LAST_RESULT = String::from(cstr.to_str().unwrap());
+  let mut raw = cstr.to_bytes();
+  if raw.ends_with(b"\xd0(\xed") {
+    raw = &raw[..raw.len() - 3];
+  }
+  let s = String::from_utf8(raw.into()).unwrap();
+  if s.starts_with("exception:") {
+    LAST_RESULT = Result::Err(Error::new(Status::GenericFailure, s));
+  } else {
+    LAST_RESULT = Result::Ok(s);
+  }
 }
 
 #[napi]
@@ -43,12 +52,12 @@ pub fn database_exists(config: String) -> Result<bool> {
       output_format.as_bytes().as_ptr() as _,
       parse_return as *const c_void,
     );
-    Ok(LAST_RESULT == "true")
+    LAST_RESULT.clone().map(|v| v == "true")
   }
 }
 
 #[napi]
-pub fn create_database(config: String) -> Result<String> {
+pub fn create_database(config: String) -> Result<()> {
   let output_format = "json\0";
   let cconfig = CString::new(config).unwrap();
 
@@ -59,14 +68,30 @@ pub fn create_database(config: String) -> Result<String> {
       output_format.as_bytes().as_ptr() as _,
       parse_return as *const c_void,
     );
-    Ok(LAST_RESULT.clone())
+    LAST_RESULT.clone().map(|_| ())
+  }
+}
+
+#[napi]
+pub fn delete_database(config: String) -> Result<()> {
+  let output_format = "json\0";
+  let cconfig = CString::new(config).unwrap();
+
+  unsafe {
+    ffi::delete_database(
+      ISOLATETHREAD,
+      cconfig.as_ptr(),
+      output_format.as_bytes().as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone().map(|_| ())
   }
 }
 
 #[napi]
 pub fn transact(config: String, tx_data: String) -> Result<String> {
   let input_format = "edn\0";
-  let output_format = "json\0";
+  let output_format = "edn\0";
 
   let cconfig = CString::new(config).unwrap();
   let ctx_data = CString::new(tx_data).unwrap();
@@ -80,7 +105,7 @@ pub fn transact(config: String, tx_data: String) -> Result<String> {
       output_format.as_ptr() as _,
       parse_return as *const c_void,
     );
-    Ok(LAST_RESULT.clone())
+    LAST_RESULT.clone()
   }
 }
 
@@ -108,7 +133,47 @@ pub fn query(query_edn: String, inputs: Vec<(String, String)>) -> Result<String>
       output_format.as_ptr() as _,
       parse_return as *const c_void,
     );
-    Ok(LAST_RESULT.clone())
+    LAST_RESULT.clone()
+  }
+}
+
+#[napi]
+pub fn pull(input_db: String, selector: String, eid: i64) -> Result<String> {
+  let output_format = "json\0";
+  let input_format = "db\0";
+
+  let cinput_db = CString::new(input_db).unwrap();
+  let cselector = CString::new(selector).unwrap();
+  unsafe {
+    ffi::pull(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      cselector.as_ptr(),
+      eid,
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
+  }
+}
+
+#[napi]
+pub fn entity(input_db: String, eid: i64) -> Result<String> {
+  let output_format = "json\0";
+  let input_format = "db\0";
+
+  let cinput_db = CString::new(input_db).unwrap();
+  unsafe {
+    ffi::entity(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      eid,
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
   }
 }
 
@@ -122,24 +187,10 @@ mod ffi {
       isolate: *mut *mut c_void,
       thread: *mut *mut c_void,
     ) -> c_int;
-    // int graal_create_isolate(graal_create_isolate_params_t* params, graal_isolate_t** isolate, graal_isolatethread_t** thread);
-
     /*
-      void database_exists(long long int, const char*, const char*, const void *);
 
-    void delete_database(long long int, const char*, const char*, const void *);
-
-    void create_database(long long int, const char*, const char*, const void *);
-
-    void query(long long int, const char*, long long int, const char**, const char**, const char*, const void *);
-
-    void transact(long long int, const char*, const char*, const char*, const char*, const void *);
-
-    void pull(long long int, const char*, const char*, const char*, long long int, const char*, const void *);
 
     void pull_many(long long int, const char*, const char*, const char*, const char*, const char*, const void *);
-
-    void entity(long long int, const char*, const char*, long long int, const char*, const void *);
 
     void datoms(long long int, const char*, const char*, const char*, const char*, const void *);
 
@@ -191,6 +242,7 @@ mod ffi {
 
     pub fn pull(
       context: *const c_void,
+      input_format: *const c_char,
       raw_input: *const c_char,
       selector_edn: *const c_char,
       eid: c_long,
@@ -199,6 +251,15 @@ mod ffi {
     );
 
     // TODO: pull_many
+
+    pub fn entity(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      eid: c_long,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
 
   }
 }

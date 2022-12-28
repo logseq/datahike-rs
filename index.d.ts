@@ -5,6 +5,9 @@
 
 export function init(): void
 export function databaseExists(config: string): boolean
-export function createDatabase(config: string): string
+export function createDatabase(config: string): void
+export function deleteDatabase(config: string): void
 export function transact(config: string, txData: string): string
 export function query(queryEdn: string, inputs: Array<[string, string]>): string
+export function pull(inputDb: string, selector: string, eid: number): string
+export function entity(inputDb: string, eid: number): string
