@@ -224,6 +224,44 @@ pub fn datoms(input_db: String, index_edn: String) -> Result<String> {
   }
 }
 
+#[napi]
+pub fn schema(input_db: String) -> Result<String> {
+  let input_format = "db\0";
+  let output_format = "edn\0";
+
+  let cinput_db = CString::new(input_db).unwrap();
+
+  unsafe {
+    ffi::schema(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
+  }
+}
+
+#[napi]
+pub fn reverse_schema(input_db: String) -> Result<String> {
+  let input_format = "db\0";
+  let output_format = "edn\0";
+
+  let cinput_db = CString::new(input_db).unwrap();
+
+  unsafe {
+    ffi::reverse_schema(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
+  }
+}
+
 mod ffi {
   use std::ffi::{c_char, c_int, c_long, c_longlong, c_void};
 
@@ -235,10 +273,6 @@ mod ffi {
       thread: *mut *mut c_void,
     ) -> c_int;
     /*
-    void schema(long long int, const char*, const char*, const char*, const void *);
-
-    void reverse_schema(long long int, const char*, const char*, const char*, const void *);
-
     void metrics(long long int, const char*, const char*, const char*, const void *);
      */
     pub fn database_exists(
@@ -319,5 +353,20 @@ mod ffi {
       output_reader: *const c_void,
     );
 
+    pub fn schema(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
+
+    pub fn reverse_schema(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
   }
 }

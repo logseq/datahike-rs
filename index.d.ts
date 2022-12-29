@@ -16,3 +16,5 @@ export function pullMany(inputDb: string, selector: string, eids: string): strin
 export function entity(inputDb: string, eid: number): string
 /** index_edn: :avet, :aevt, :eavt */
 export function datoms(inputDb: string, indexEdn: string): string
+export function schema(inputDb: string): string
+export function reverseSchema(inputDb: string): string

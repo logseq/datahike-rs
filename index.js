@@ -246,7 +246,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { init, databaseExists, createDatabase, deleteDatabase, transact, query, pull, pullMany, entity, datoms } = nativeBinding
+const { init, databaseExists, createDatabase, deleteDatabase, transact, query, pull, pullMany, entity, datoms, schema, reverseSchema } = nativeBinding
 
 module.exports.init = init
 module.exports.databaseExists = databaseExists
@@ -258,3 +258,5 @@ module.exports.pull = pull
 module.exports.pullMany = pullMany
 module.exports.entity = entity
 module.exports.datoms = datoms
+module.exports.schema = schema
+module.exports.reverseSchema = reverseSchema
