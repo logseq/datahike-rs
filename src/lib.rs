@@ -2,7 +2,6 @@
 
 use napi::*;
 use std::{
-  collections::HashMap,
   ffi::{c_char, c_void, CStr, CString},
   ptr,
 };
@@ -15,20 +14,22 @@ static mut LAST_RESULT: Result<String> = Result::Ok(String::new());
 
 #[napi]
 pub fn init() -> Result<()> {
+  let mut isolate = ptr::null_mut();
+  let mut isolatethread = ptr::null_mut();
   unsafe {
-    let mut isolate = ptr::null_mut();
-    let mut isolatethread = ptr::null_mut();
-    ffi::graal_create_isolate(ptr::null_mut(), &mut isolate, &mut isolatethread);
-
-    ISOLATETHREAD = isolatethread;
+    if ISOLATETHREAD.is_null() {
+      ffi::graal_create_isolate(ptr::null_mut(), &mut isolate, &mut isolatethread);
+      ISOLATETHREAD = isolatethread;
+    }
   }
   Ok(())
 }
 
 unsafe extern "C" fn parse_return(buf: *const c_char) {
   let cstr = CStr::from_ptr(buf);
-  println!("DEBUG: => {:?}", cstr);
+  // println!("DEBUG: => {:?}", cstr);
   let mut raw = cstr.to_bytes();
+  // NOTE: fix for wrong trailling bytes
   if raw.ends_with(b"\xd0(\xed") {
     raw = &raw[..raw.len() - 3];
   }
@@ -42,7 +43,7 @@ unsafe extern "C" fn parse_return(buf: *const c_char) {
 
 #[napi]
 pub fn database_exists(config: String) -> Result<bool> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
   let cconfig = CString::new(config).unwrap();
 
   unsafe {
@@ -58,7 +59,7 @@ pub fn database_exists(config: String) -> Result<bool> {
 
 #[napi]
 pub fn create_database(config: String) -> Result<()> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
   let cconfig = CString::new(config).unwrap();
 
   unsafe {
@@ -74,7 +75,7 @@ pub fn create_database(config: String) -> Result<()> {
 
 #[napi]
 pub fn delete_database(config: String) -> Result<()> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
   let cconfig = CString::new(config).unwrap();
 
   unsafe {
@@ -109,9 +110,10 @@ pub fn transact(config: String, tx_data: String) -> Result<String> {
   }
 }
 
+/// inputs: [[type, edn]] e.g. [["db", config]]
 #[napi]
 pub fn query(query_edn: String, inputs: Vec<(String, String)>) -> Result<String> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
 
   let cquery_edn = CString::new(query_edn).unwrap();
   let input_keys = inputs
@@ -139,7 +141,7 @@ pub fn query(query_edn: String, inputs: Vec<(String, String)>) -> Result<String>
 
 #[napi]
 pub fn pull(input_db: String, selector: String, eid: i64) -> Result<String> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
   let input_format = "db\0";
 
   let cinput_db = CString::new(input_db).unwrap();
@@ -158,9 +160,10 @@ pub fn pull(input_db: String, selector: String, eid: i64) -> Result<String> {
   }
 }
 
+/// eids: [1 2 3 4]
 #[napi]
 pub fn pull_many(input_db: String, selector: String, eids: String) -> Result<String> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
   let input_format = "db\0";
 
   let cinput_db = CString::new(input_db).unwrap();
@@ -182,7 +185,7 @@ pub fn pull_many(input_db: String, selector: String, eids: String) -> Result<Str
 
 #[napi]
 pub fn entity(input_db: String, eid: i64) -> Result<String> {
-  let output_format = "json\0";
+  let output_format = "edn\0";
   let input_format = "db\0";
 
   let cinput_db = CString::new(input_db).unwrap();
@@ -192,6 +195,28 @@ pub fn entity(input_db: String, eid: i64) -> Result<String> {
       input_format.as_ptr() as _,
       cinput_db.as_ptr(),
       eid,
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
+  }
+}
+
+/// index_edn: :avet, :aevt, :eavt
+#[napi]
+pub fn datoms(input_db: String, index_edn: String) -> Result<String> {
+  let input_format = "db\0";
+  let output_format = "edn\0";
+
+  let cinput_db = CString::new(input_db).unwrap();
+  let cindex_edn = CString::new(index_edn).unwrap();
+
+  unsafe {
+    ffi::datoms(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      cindex_edn.as_ptr(),
       output_format.as_ptr() as _,
       parse_return as *const c_void,
     );
@@ -210,8 +235,6 @@ mod ffi {
       thread: *mut *mut c_void,
     ) -> c_int;
     /*
-    void datoms(long long int, const char*, const char*, const char*, const char*, const void *);
-
     void schema(long long int, const char*, const char*, const char*, const void *);
 
     void reverse_schema(long long int, const char*, const char*, const char*, const void *);
@@ -268,7 +291,6 @@ mod ffi {
       output_reader: *const c_void,
     );
 
-
     pub fn pull_many(
       context: *const c_void,
       input_format: *const c_char,
@@ -288,17 +310,14 @@ mod ffi {
       output_reader: *const c_void,
     );
 
-  }
-}
+    pub fn datoms(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      index_edn: *const c_char,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
 
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn it_works() {
-    let config = "{:store {:backend :file :path \"./path-to-db\"} :schema-flexibility :read}";
-    init();
-    create_database(config.into());
   }
 }
