@@ -6,15 +6,13 @@ const datahike = require('./datahike.darwin-arm64.node')
 const main = async () => {
     await datahike.init()
 
-    const config = "{:store {:backend :file :path \"./path-to-db\"} :schema-flexibility :read}";
-
+    const config = `{:store {:backend :file :path "./path-to-db"} :schema-flexibility :read}`
 
     const exists = await datahike.databaseExists(config);
     console.log("EX:", exists);
 
-
     if (!exists) {
-        console.log(await datahike.createDatabase(config));
+        await datahike.createDatabase(config)
     }
 
     // let tx_data = "[{:age 42}]"
@@ -39,15 +37,15 @@ const main = async () => {
 
     console.log("Pull many:", await datahike.pullMany(config, "[:name]", "[1 2 3 4]"))
 
-
     console.log("Pull with default:", await datahike.pull(config, `[(default :foo "bar")]`, 2))
 
 
     console.log("datoms:", await datahike.datoms(config, ":eavt", 1, 4, 100))
 
-    console.log(await datahike.deleteDatabase(config));
+    console.log("schema:", await datahike.schema(config))
 
+    // await datahike.deleteDatabase(config)
 }
 
 
-main().then(console.log)
+main().catch(console.error)
