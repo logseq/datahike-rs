@@ -1,6 +1,6 @@
 {
   "name": "@logseq/datahike-darwin-arm64",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "os": [
     "darwin"
   ],
@@ -9,7 +9,8 @@
   ],
   "main": "datahike.darwin-arm64.node",
   "files": [
-    "datahike.darwin-arm64.node"
+    "datahike.darwin-arm64.node",
+    "libdatahike.dylib"
   ],
   "license": "MIT",
   "engines": {

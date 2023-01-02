@@ -1,6 +1,6 @@
 {
   "name": "@logseq/datahike",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
@@ -31,5 +31,11 @@
     "universal": "napi universal",
     "version": "napi version"
   },
-  "packageManager": "yarn@3.3.1"
+  "packageManager": "yarn@3.3.1",
+  "optionalDependencies": {
+    "@logseq/datahike-win32-x64-msvc": "0.0.1",
+    "@logseq/datahike-darwin-x64": "0.0.1",
+    "@logseq/datahike-linux-x64-gnu": "0.0.1",
+    "@logseq/datahike-darwin-arm64": "0.0.1"
+  }
 }
