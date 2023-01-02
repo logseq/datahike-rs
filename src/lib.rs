@@ -30,7 +30,7 @@ unsafe extern "C" fn parse_return(buf: *const c_char) {
   // println!("DEBUG: => {:?}", cstr);
   let mut raw = cstr.to_bytes();
   // NOTE: fix for wrong trailling bytes
-  if raw.ends_with(b"\xd0(\xed") {
+  if raw.len() >= 4 && raw.last().unwrap() != &b'}' && raw[raw.len()-4] == b'}' {
     raw = &raw[..raw.len() - 3];
   }
   let s = String::from_utf8(raw.into()).unwrap();
