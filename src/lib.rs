@@ -28,11 +28,7 @@ pub fn init() -> Result<()> {
 unsafe extern "C" fn parse_return(buf: *const c_char) {
   let cstr = CStr::from_ptr(buf);
   // println!("DEBUG: => {:?}", cstr);
-  let mut raw = cstr.to_bytes();
-  // NOTE: fix for wrong trailling bytes
-  if raw.len() >= 4 && raw.last().unwrap() != &b'}' && raw[raw.len()-4] == b'}' {
-    raw = &raw[..raw.len() - 3];
-  }
+  let raw = cstr.to_bytes();
   let s = String::from_utf8(raw.into()).unwrap();
   if s.starts_with("exception:") {
     LAST_RESULT = Result::Err(Error::new(Status::GenericFailure, s));
@@ -140,27 +136,43 @@ pub fn query(query_edn: String, inputs: Vec<(String, String)>) -> Result<String>
 }
 
 #[napi]
-pub fn pull(input_db: String, selector: String, eid: i64) -> Result<String> {
+pub fn pull(input_db: String, selector: String, eid: Either<i64, String>) -> Result<String> {
   let output_format = "edn\0";
   let input_format = "db\0";
 
   let cinput_db = CString::new(input_db).unwrap();
   let cselector = CString::new(selector).unwrap();
-  unsafe {
-    ffi::pull(
-      ISOLATETHREAD,
-      input_format.as_ptr() as _,
-      cinput_db.as_ptr(),
-      cselector.as_ptr(),
-      eid,
-      output_format.as_ptr() as _,
-      parse_return as *const c_void,
-    );
-    LAST_RESULT.clone()
+
+  match eid {
+    Either::A(eid) => unsafe {
+      ffi::pull(
+        ISOLATETHREAD,
+        input_format.as_ptr() as _,
+        cinput_db.as_ptr(),
+        cselector.as_ptr(),
+        eid,
+        output_format.as_ptr() as _,
+        parse_return as *const c_void,
+      );
+    },
+    Either::B(ref_edn) => unsafe {
+      let cref_edn = CString::new(ref_edn.clone()).unwrap();
+      ffi::pull_ref(
+        ISOLATETHREAD,
+        input_format.as_ptr() as _,
+        cinput_db.as_ptr(),
+        cselector.as_ptr(),
+        cref_edn.as_ptr(),
+        output_format.as_ptr() as _,
+        parse_return as *const c_void,
+      );
+    },
   }
+  unsafe { LAST_RESULT.clone() }
 }
 
 /// eids: [1 2 3 4]
+/// lookup_refs: []
 #[napi]
 pub fn pull_many(input_db: String, selector: String, eids: String) -> Result<String> {
   let output_format = "edn\0";
@@ -169,6 +181,21 @@ pub fn pull_many(input_db: String, selector: String, eids: String) -> Result<Str
   let cinput_db = CString::new(input_db).unwrap();
   let cselector = CString::new(selector).unwrap();
   let ceids = CString::new(eids).unwrap();
+
+  unsafe {
+    ffi::pull_many_ref(
+      ISOLATETHREAD,
+      input_format.as_ptr() as _,
+      cinput_db.as_ptr(),
+      cselector.as_ptr(),
+      ceids.as_ptr(),
+      output_format.as_ptr() as _,
+      parse_return as *const c_void,
+    );
+    LAST_RESULT.clone()
+  }
+
+  /*
   unsafe {
     ffi::pull_many(
       ISOLATETHREAD,
@@ -181,25 +208,39 @@ pub fn pull_many(input_db: String, selector: String, eids: String) -> Result<Str
     );
     LAST_RESULT.clone()
   }
+   */
 }
 
 #[napi]
-pub fn entity(input_db: String, eid: i64) -> Result<String> {
+pub fn entity(input_db: String, eid: Either<i64, String>) -> Result<String> {
   let output_format = "edn\0";
   let input_format = "db\0";
 
   let cinput_db = CString::new(input_db).unwrap();
-  unsafe {
-    ffi::entity(
-      ISOLATETHREAD,
-      input_format.as_ptr() as _,
-      cinput_db.as_ptr(),
-      eid,
-      output_format.as_ptr() as _,
-      parse_return as *const c_void,
-    );
-    LAST_RESULT.clone()
+  match eid {
+    Either::A(eid) => unsafe {
+      ffi::entity(
+        ISOLATETHREAD,
+        input_format.as_ptr() as _,
+        cinput_db.as_ptr(),
+        eid,
+        output_format.as_ptr() as _,
+        parse_return as *const c_void,
+      );
+    },
+    Either::B(ref_edn) => unsafe {
+      let cref_edn = CString::new(ref_edn.clone()).unwrap();
+      ffi::entity_ref(
+        ISOLATETHREAD,
+        input_format.as_ptr() as _,
+        cinput_db.as_ptr(),
+        cref_edn.as_ptr(),
+        output_format.as_ptr() as _,
+        parse_return as *const c_void,
+      );
+    },
   }
+  unsafe { LAST_RESULT.clone() }
 }
 
 /// index_edn: :avet, :aevt, :eavt
@@ -325,6 +366,17 @@ mod ffi {
       output_reader: *const c_void,
     );
 
+    pub fn pull_ref(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      selector_edn: *const c_char,
+      eid_edn: *const c_char,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
+
+    #[allow(dead_code)]
     pub fn pull_many(
       context: *const c_void,
       input_format: *const c_char,
@@ -334,12 +386,30 @@ mod ffi {
       output_format: *const c_char,
       output_reader: *const c_void,
     );
+    pub fn pull_many_ref(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      selector_edn: *const c_char,
+      refs_edn: *const c_char,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
 
     pub fn entity(
       context: *const c_void,
       input_format: *const c_char,
       raw_input: *const c_char,
       eid: c_long,
+      output_format: *const c_char,
+      output_reader: *const c_void,
+    );
+
+    pub fn entity_ref(
+      context: *const c_void,
+      input_format: *const c_char,
+      raw_input: *const c_char,
+      ref_edn: *const c_char, // by lookup-ref
       output_format: *const c_char,
       output_reader: *const c_void,
     );

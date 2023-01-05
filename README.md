@@ -7,3 +7,8 @@
 - yarn
 - yarn build
 - yarn link (or `node demo.js`)
+
+## Errors
+
+- Symbol not found: (_create_database)
+  recompile
