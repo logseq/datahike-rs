@@ -3,7 +3,7 @@
 ## How to
 
 - Copy libdatahike.dylib or libdatahike.so to this project
-  - [Prebuilt for macOS Apple Silicon](https://github.com/logseq/datahike-rs/releases/tag/0.0.0)
+  - Use https://github.com/andelf/datahike/tree/dev (`dev` branch)
 - yarn
 - yarn build
 - yarn link (or `node demo.js`)
